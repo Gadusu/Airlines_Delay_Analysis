@@ -1,13 +1,4 @@
----
-title: "BANL6900-Business Analytics Capstone
-        Final project paper"
-author: "SHASHIKUMAR GADUSU,
-         RENUKA CHOWDARY PARVATHANENI,
-          ROHITTH MALLEBOINA
-          Univsersity of New Haven"
-date:  "2024-05-04"          
-format: docx
-editor: visual
+
 ---
 
 ## AIRLINES DELAY ANALYSIS(December 2021 to 2023)
