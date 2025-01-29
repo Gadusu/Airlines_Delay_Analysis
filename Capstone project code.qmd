@@ -1,0 +1,369 @@
+---
+title: "BANL6900-Business Analytics Capstone
+        Final project paper"
+author: "SHASHIKUMAR GADUSU,
+         RENUKA CHOWDARY PARVATHANENI,
+          ROHITTH MALLEBOINA
+          Univsersity of New Haven"
+date:  "2024-05-04"          
+format: docx
+editor: visual
+---
+
+## AIRLINES DELAY ANALYSIS(December 2021 to 2023)
+
+Abstract:
+
+The airline industry plays a crucial role in global transportation and logistics. However, flight delays have become a persistent issue, causing significant inconveniences and economic losses. This study investigates the problem of flight delays and aims to analyze the factors contributing to these delays using data analytics techniques. The project utilizes flight delay data from December 2021 to 2023, employing predictive modeling methods such as logistic regression and decision trees.
+
+The findings of this study provide insights into the reasons behind flight delays, enabling airlines and aviation authorities to develop strategies for mitigating delays and improving overall operational efficiency.The researchers aim to predict and understand what causes these holiday season delays. By uncovering the root causes, airlines and aviation authorities can develop better strategies to prevent delays and keep everyone moving smoothly during the busy holiday season.
+
+1\. Introduction:
+
+Business Problem Identification:
+
+Flight delays have become a significant concern for airlines, passengers, and the aviation industry. Delayed flights result in increased operational costs for airlines, passenger dissatisfaction, and potential disruptions to travel plans. Understanding the factors contributing to flight delays is crucial for developing effective strategies to minimize their occurrence and impact.
+
+Literature Review:
+
+1\. Kafle, N., & Zou, B. (2016). Modeling flight delay propagation: A new analytical-econometric approach. Transportation Research Part B: Methodological, 93, 520-542. This research proposes a new analytical-econometric approach to model and quantify the propagation of flight delays across the air transportation network.
+
+2\. Xu, N., Sherry, L., & Laskey, K. B. (2008). Multi-factor model for predicting delays at US airports. Transportation Research Part A: Policy and Practice, 42(10), 1306-1320. This study develops a multi-factor model to predict delays at U.S. airports, considering factors such as weather, airline operations, and airport infrastructure.
+
+```{r}
+# Load necessary libraries
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(tidymodels)
+library(lattice)
+library(caret)
+library(mltools)
+library(randomForest)
+library(class)
+library(FNN)
+library(pROC)
+library(kernlab)
+library(rpart)
+library(rpart.plot)
+library(plotly)
+library(webshot2)
+```
+
+```{r}
+#| echo: false
+
+
+# Read the flight delay data (replace with your actual file path)
+flight_data <- read_csv("Delaysdataset.csv")
+view(flight_data)
+```
+
+2\. Data Collection and Preparation:
+
+The dataset used in this study is a comprehensive collection of flight delay information from December 2021 to 2023. The dataset includes the following columns:
+
+\- Year: The year of the flight
+
+\- Month: The month of the flight
+
+\- DayofMonth: The day of the month for the flight
+
+\- DayOfWeek: The day of the week for the flight
+
+\- DepTime: The scheduled departure time for the flight
+
+\- ArrTime: The scheduled arrival time for the flight
+
+\- DepDelay: The departure delay in minutes
+
+\- ArrDelay: The arrival delay in minutes
+
+\- CarrierDelay: The delay caused by the airline carrier
+
+\- WeatherDelay: The delay caused by weather conditions
+
+\- NasDelay: The delay caused by the National Airspace System
+
+\- SecurityDelay: The delay caused by security reasons
+
+\- LateAircraftDelay: The delay caused by a late arrival of the aircraft
+
+Data cleaning and preparation were performed to ensure the accuracy and reliability of the analysis. This involved handling missing values, removing irrelevant columns, and converting data types where necessary. Additionally, a new column called "Reason" was created to indicate the primary reason for the delay (CarrierDelay, WeatherDelay, or NasDelay).
+
+```{r}
+#| echo: false
+#Data Exploration
+str(flight_data)
+summary(flight_data)
+head(flight_data)
+flight_data$year <- as.character(flight_data$year)
+
+flight_data$Reason <- apply(flight_data[, c("CarrierDelay", "WeatherDelay", "NasDelay")], 1, function(x) {
+  names(x)[which.max(x)]
+})
+
+flight_data$Reason <- as.character(flight_data$Reason)
+```
+
+```{r}
+#| echo: false
+#Preprocess Data
+set.seed(123)
+flights <- flight_data %>%
+  mutate(
+    DepDelay = ifelse(DepDelay >= 10, "late", "on_time"),
+    DepDelay = factor(DepDelay)
+  ) %>%
+  na.omit() %>%
+  mutate_if(is.character, as.factor) 
+
+
+```
+
+The heatmap illustrates correlations between different flight delay types (CarrierDelay, WeatherDelay, and ArrDelay). Positive correlations are shown in purple squares, while near-zero correlations appear as white squares, with specific values indicating the strength of the relationships.
+
+```{r}
+#| echo: false
+data_cont <- flights  %>% 
+  select( ArrDelay, CarrierDelay ,
+          WeatherDelay , NasDelay)
+
+cor_data <- cor(data_cont)
+
+library(ggcorrplot)
+ggcorrplot(cor_data, 
+           method = 'square',
+           type = 'lower',
+           lab = T,
+           colors = c("red", "white", "blue"))
+```
+
+The frequency counts show that the dataset contains 1358 delayed flights and 200 on-time flights. The proportion of delayed flights is approximately 87%, indicating a significant prevalence of flight delays in the data.
+
+```{r}
+#| echo: false
+table(flights$DepDelay)
+
+
+# percent of delays  = 87%
+1358/(1358+200) 
+```
+
+The bar graph depicts flight departures categorized as “late” and “on_time.” The taller “late” bar indicates a high frequency of Depdelays, while the shorter “on_time” bar represents fewer punctual departures.
+
+```{r}
+#| echo: false
+# View distribution of arrival delays
+ggplot(flights, aes(DepDelay)) +
+  geom_bar(color = "blue", bins = 3,fill="#CC0000")
+```
+
+3\. Methodology:
+
+Dataset: [Airlines Delay Dataset](https://www.transtats.bts.gov/OT_Delay/OT_DelayCause1.asp)
+
+This dataset is from Bureau of Transportation Statistics (BTS) (.gov), offers a comprehensive view of airlines perform in terms of on-time arrivals, delays, cancellations, and diversions for domestic flights operated by major airlines. The dataset includes key parameters such as year, carrier, origin, destination, arrival delays, departure delays, airtime, etc.
+
+Approach:
+
+This study employs a predictive analytics approach to investigate the problem of flight delays. Predictive modeling techniques are utilized to identify the factors contributing to flight delays and develop models that can predict the likelihood of delays occurring.
+
+```{r}
+#| echo: false
+# Split data into training and testing sets
+set.seed(456)
+split_data <- initial_split(flights, prop = 0.8)
+train_data <- training(split_data)
+test_data <- testing(split_data)
+```
+
+Algorithms:
+
+Two main algorithms were used in this study:
+
+1\. Logistic Regression: A logistic regression model was trained to predict the binary outcome of whether a flight would be delayed or on-time, based on features such as arrival delay, carrier delay, and weather delay.
+
+```{r}
+#| echo: false
+# Create a logistic regression model***
+
+logit.reg <- glm(DepDelay ~ ArrDelay +  CarrierDelay + WeatherDelay, data = test_data,family = "binomial")
+summary(logit.reg)
+```
+
+```{r}
+#| echo: false
+# Evaluate model performance
+
+logit.reg.pred <- predict(logit.reg, test_data,type = "response")
+
+
+logit.reg.class<- factor(ifelse(logit.reg.pred >= 0.8,"on_time","late"))
+
+table(logit.reg.class)
+```
+
+```{r}
+#| echo: false
+# View accuracy and confusion matrix
+con_matrix<- confusionMatrix(logit.reg.class,factor(test_data$DepDelay),positive = "late")
+
+log_reg_accuracy <- con_matrix$overall["Accuracy"]
+log_reg_precision <- con_matrix$byClass["Precision"]
+log_reg_recall <- con_matrix$byClass["Recall"]
+log_reg_f1 <- con_matrix$byClass["F1"]
+
+
+print(con_matrix)
+```
+
+2\. Decision Tree: A classification tree model was also developed using the rpart (Recursive Partitioning and Regression Trees) algorithm. This model aims to predict flight delays by recursively partitioning the data based on the input features.
+
+```{r}
+#| echo: false
+# classification tree*
+
+# Create a classification tree model using all default values of the procedure
+default.ct <- rpart(DepDelay ~., data = test_data, method = "class")
+
+
+# plot tree
+prp(default.ct, type = 4, extra = 1, under = TRUE, split.font = 2, varlen = -10)
+
+summary(default.ct)
+
+
+default.ct.pred.train <- predict(default.ct, test_data, type = "class")
+```
+
+```{r}
+#| echo: false
+# generate confusion matrix for training data
+
+con_matrix_dt<- confusionMatrix(default.ct.pred.train, as.factor(test_data$DepDelay), positive = "late") 
+
+dt_accuracy <- con_matrix_dt$overall["Accuracy"]
+dt_precision <- con_matrix_dt$byClass["Precision"]
+dt_recall <- con_matrix_dt$byClass["Recall"]
+dt_f1 <- con_matrix_dt$byClass["F1"]
+
+print(con_matrix_dt)
+```
+
+Both models were trained on a portion of the dataset and evaluated using performance metrics such as accuracy, precision, recall, and F1-score. The models' performances were compared to determine the most suitable approach for predicting flight delays.
+
+```{r}
+#| echo: false
+# Compare model performance
+models <- c("Logistic Regression","Decision Tree")
+accuracy <- c(log_reg_accuracy,dt_accuracy)
+precision <- c(log_reg_precision,dt_precision)
+recall <- c(log_reg_recall,dt_recall)
+f1 <- c(log_reg_f1,dt_f1)
+
+model_performance <- data.frame(models, accuracy, precision, recall, f1)
+model_performance
+```
+
+Model Performance: Both the logistic regression and decision tree models demonstrated reasonable performance in predicting flight delays. The decision tree model achieved slightly higher accuracy, precision, and F1-score compared to the logistic regression model. However, the choice of model may depend on specific requirements and trade-offs between interpretability and performance.
+
+```{r}
+#| echo: false
+# Create a bar plot for model performance
+ggplot(model_performance, aes(x = models, y = accuracy, fill = models)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Model", y = "Accuracy", title = "Model Performance") +
+  theme_bw()
+```
+
+4\. Findings and Discussion:
+
+The analysis of flight delay data revealed several key findings:
+
+1\. Year-wise Delays: The visualization of departure delays by year revealed variations in the number of delays across different years. This information could be valuable for airlines and aviation authorities to identify potential trends and patterns in flight delays over time.
+
+```{r}
+#| echo: false
+#visualization
+ggplot(flights,aes(x = DepDelay, y = year , fill = year)) +
+    geom_bar( stat = "identity" ) +
+  labs(x = "Departure Delays", y = "years", title = "Delays in each year") +
+  theme_bw()
+```
+
+2\. Carrier-wise Delays: The analysis also highlighted differences in departure delays across different airline carriers. Some carriers experienced higher rates of delays compared to others, indicating potential areas for improvement in operational efficiency.
+
+```{r}
+#| echo: false
+ggplot(data = flights,
+       aes(x = carrier,
+           y = DepDelay)) +
+  geom_bar(aes(fill = year ),
+           stat = 'identity') +
+  labs(x = "Carrier", y = "Dep status", title = "Departure status for each Carrier") +
+  theme_bw()
+```
+
+```{r}
+#| echo: false
+ggplot(flights, aes( x= carrier_name) )+
+  geom_bar(color="black", fill= "#0000CC") +
+  labs(x="carriers",
+       title="No of flights for each Carrier")+
+  theme(axis.text.x = element_text(angle = 90))
+```
+
+```{r}
+#| echo: false
+plot_ly(data = flights ,
+        labels = ~carrier_name, 
+        values = ~ArrDelay,
+        type = "pie")
+```
+
+```{r}
+#| echo: false
+#PIECHART
+ plot_ly(data = flights ,
+        labels = ~Reason, 
+        values = ~ArrDelay,
+        type = "pie")
+```
+
+3\. Reason for Delays: The primary reasons for flight delays were carrier delays, weather delays, and delays caused by the National Airspace System (NAS). The "Reason" column, created during data preprocessing, showed that the majority of delays were attributed to these three factors.
+
+```{r}
+#| echo: false
+ggplot(flights,aes(x =Reason , y = ArrDelay , fill = Reason)) +
+    geom_bar( stat = "identity") +
+  labs(x = "Reasons", y = "No of Delays", title = "Reason for Delays") +
+  theme_bw()
+
+```
+
+The findings of this study have significant implications for the airline industry and aviation authorities. By understanding the factors contributing to flight delays, airlines can implement targeted strategies to mitigate delays caused by carrier-related issues, such as improving operational efficiency and resource allocation. Additionally, close collaboration with weather authorities and air traffic control organizations can help address delays caused by weather conditions and airspace congestion.
+
+Potential implementation challenges may include the need for substantial investments in infrastructure, personnel training, and collaboration across various stakeholders. However, the benefits of reduced delays, improved customer satisfaction, and increased operational efficiency could outweigh the costs in the long run.
+
+5\. Conclusion:
+
+This study investigated the problem of flight delays in the airline industry using data analytics techniques. By analyzing flight delay data from December 2021 to 2023, the study identified the primary reasons for delays, including carrier delays, weather delays, and delays caused by the National Airspace System. The analysis also revealed variations in delays across different years and airline carriers. The decision tree model achieved slightly better performance compared to the logistic regression model in predicting flight delays.
+
+The findings of this study provide valuable insights for airlines and aviation authorities to develop strategies for mitigating flight delays. By addressing carrier-related issues, collaborating with weather authorities, and optimizing airspace management, the airline industry can potentially reduce delays, improve customer satisfaction, and enhance operational efficiency.
+
+Future research directions could include investigating the impact of specific weather conditions on flight delays, exploring the potential of machine learning algorithms for delay prediction, and analyzing the cascading effects of delays across the air transportation network. Additionally, incorporating real-time data and developing predictive models for proactive delay management could be valuable areas of exploration.
+
+References:
+
+Airlines Delay Dataset. Bureau of Transportation Statistics (BTS) (.gov),
+
+<https://www.transtats.bts.gov/OT_Delay/OT_DelayCause1.asp>
+
+Kafle, N., & Zou, B. (2016). Modeling flight delay propagation: A new analytical-econometric approach. Transportation Research Part B: Methodological, 93, 520-542.
+
+<https://www.researchgate.net/publication/307605655_Modeling_flight_delay_propagation_A_new_analytical-econometric_approach>
+
+Xu, N., Sherry, L., & Laskey, K. B. (2008). Multi-factor model for predicting delays at US airports. Transportation Research Part A: Policy and Practice,42(10),1306-1320.
+
+<https://catsr.vse.gmu.edu/pubs/XuMultiFactorModelAirportDelaysTRBv6.pdf>
